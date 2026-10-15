@@ -28,6 +28,7 @@
         <button class="nav-item" data-nav="launch"><span>注册工作台</span></button>
         <button class="nav-item" data-nav="jobs"><span>任务队列</span></button>
         <button class="nav-item" data-nav="results"><span>任务结果</span></button>
+        <button class="nav-item" data-nav="gateway"><span>模型网关</span></button>
         <button class="nav-item" data-nav="settings"><span>运行配置</span></button>
       </nav>
       <div class="sidebar-foot"><div class="health-pulse"><span id="sideHealthDot"></span><div><strong id="sideHealthText">检查中</strong><small>Logicc only · v0.2.0</small></div></div></div>
@@ -82,6 +83,28 @@
       </section>
       <section class="view" id="view-jobs" data-view="jobs"><div class="page-heading"><div><h1>任务队列</h1><p>查看协议阶段和明确的成功、待人工、待收码或需核对状态。</p></div><button class="secondary" id="refreshJobs">刷新</button></div><section class="surface table-surface"><div class="table-wrap"><table><thead><tr><th>任务</th><th>状态</th><th>进度</th><th>结果</th><th>操作</th></tr></thead><tbody id="jobsTableBody"></tbody></table></div></section></section>
       <section class="view" id="view-results" data-view="results"><div class="page-heading"><div><h1>任务结果</h1><p>列表不返回凭据。</p></div><button class="secondary" id="refreshResults">刷新</button></div><section class="surface table-surface"><div class="table-wrap"><table><thead><tr><th>邮箱</th><th>状态</th><th>方式</th><th>任务</th></tr></thead><tbody id="resultsTableBody"></tbody></table></div></section></section>
+      <section class="view" id="view-gateway" data-view="gateway">
+        <div class="page-heading"><div><p class="kicker">OPENAI / GATEWAY</p><h1>模型网关</h1><p>当前项目直接提供 OpenAI 兼容接口，无需另行运行 logicc2api。仅监听本机；工具执行仍由客户端授权。</p></div><button class="secondary" id="refreshGateway" type="button">刷新状态</button></div>
+        <section class="surface setting-panel active">
+          <div class="setting-title"><div><h2>客户端连接</h2><span id="gatewaySummary" role="status">正在读取网关状态</span></div></div>
+          <label class="switch-line"><span>启用内置网关</span><input id="gatewayEnabled" type="checkbox"><i></i></label>
+          <div class="field-grid two-wide">
+            <label><span>Base URL</span><input id="gatewayBaseUrl" readonly aria-label="OpenAI Base URL"></label>
+            <label><span>API Key（默认不读取，切换页面清除）</span><input id="gatewayKey" type="password" readonly autocomplete="off" placeholder="点击显示或复制密钥" aria-label="网关 API Key"></label>
+            <label><span>网关出口代理（独立于注册代理）</span><input id="gatewayProxy" type="password" autocomplete="off" placeholder="留空保留；停用代理请勾选下方选项"><small id="gatewayProxyHint"></small></label>
+            <label class="switch-line"><span>清除出口代理，使用直连</span><input id="gatewayClearProxy" type="checkbox"><i></i></label>
+          </div>
+          <div class="batch-actions"><button class="primary" id="saveGateway" type="button">保存网关配置</button><button class="secondary" id="showGatewayKey" type="button">显示密钥</button><button class="secondary" id="copyGatewayKey" type="button">复制密钥</button><button class="secondary" id="rotateGatewayKey" type="button">更换密钥</button></div>
+          <p>支持 GET /v1/models、POST /v1/chat/completions、POST /v1/responses，含流式输出和工具调用。最多 32 个同时请求；模型 ID 从下方列表选择。</p>
+          <div id="gatewayModels" class="inline-result" role="status"></div>
+        </section>
+        <section class="surface setting-panel active">
+          <div class="setting-title"><div><h2>模型账号池</h2><span>只同步认证和入驻已确认的账号；按 Session 去重，不覆盖已轮换的 Cookie。最低并发轮询，异常账号自动冷却。</span></div><button class="secondary compact" id="syncGatewayAccounts" type="button">同步本项目账号</button></div>
+          <div class="table-wrap"><table><thead><tr><th>账号</th><th>状态</th><th>运行中</th><th>说明</th><th>操作</th></tr></thead><tbody id="gatewayAccounts"></tbody></table></div>
+          <details><summary>导入已有平台会话（不导入邮箱密码）</summary><label><span>JSON 数组，最多 200 条</span><textarea id="gatewayImport" rows="4" autocomplete="off" spellcheck="false" placeholder='[{"name":"我的账号","sessionId":"sess_...","clientCookie":"...","enabled":true}]'></textarea></label><button class="secondary" id="importGatewayAccounts" type="button">导入平台会话</button></details>
+          <p>凭据与池状态均加密保存。请勿将浏览器原始抓包、Cookie 或数据目录上传公开仓库。网关需要本机 Node.js 24+，由项目自动管理子进程。</p>
+        </section>
+      </section>
       <section class="view" id="view-settings" data-view="settings">
         <div class="page-heading"><div><p class="kicker">SYSTEM / CONFIG</p><h1>运行配置</h1><p>配置只保存在独立项目的数据目录，敏感值读取时保持隐藏。</p></div><button class="primary" id="saveSettings">保存通用配置</button></div>
         <div class="settings-layout">

@@ -1,7 +1,7 @@
 "use strict";
 const $ = selector => document.querySelector(selector);
 const $$ = selector => [...document.querySelectorAll(selector)];
-const viewNames = {pool: "邮箱管理", launch: "注册工作台", jobs: "任务队列", results: "任务结果", settings: "运行配置"};
+const viewNames = {pool: "邮箱管理", launch: "注册工作台", jobs: "任务队列", results: "任务结果", gateway: "模型网关", settings: "运行配置"};
 let accounts = [];
 let passwordRequest = 0;
 let batchLoading = false;
@@ -294,6 +294,10 @@ async function loadProxies() {
 }
 
 async function routeTo(view) {
+  if ($("#gatewayKey")) $("#gatewayKey").value = "";
+  if ($("#gatewayProxy")) $("#gatewayProxy").value = "";
+  if ($("#gatewayImport")) $("#gatewayImport").value = "";
+  if ($("#showGatewayKey")) $("#showGatewayKey").textContent = "显示密钥";
   if (!viewNames[view]) view = "pool";
   if ($("#passwordDialog").open) $("#passwordDialog").close();
   activeView = view;
@@ -308,6 +312,7 @@ async function routeTo(view) {
     if (view === "launch") await Promise.all([loadBatch(), loadBalance()]);
     if (view === "jobs") await loadJobs();
     if (view === "results") await loadResults();
+    if (view === "gateway") await loadGateway();
     if (view === "settings") await Promise.all([loadSettings(), loadHealth()]);
   } catch (error) { toast(error.message, true); }
 }
@@ -526,6 +531,74 @@ for (const [id, path, output] of [["testRoxy", "/api/roxy/test", "#roxyTestResul
     $(output).textContent = payload.ok ? "连接正常" : "连接失败";
   }));
 }
+async function loadGateway() {
+  const state = await api("/api/gateway");
+  $("#gatewayEnabled").checked = state.enabled;
+  $("#gatewayBaseUrl").value = state.base_url;
+  $("#gatewayProxy").value = "";
+  $("#gatewayClearProxy").checked = false;
+  $("#gatewayProxyHint").textContent = state.proxy_configured ? "已加密配置：" + state.proxy_host : "未配置，使用直连";
+  $("#gatewaySummary").textContent = (state.enabled ? "已启用" : "未启用") + " · " + state.accounts.length + " 个账号 · " + (state.stats.active || 0) + " 个请求运行中 · 上限 32";
+  $("#gatewayModels").textContent = state.models.length ? "模型：" + state.models.map(model => model.id).join(" · ") : "尚无模型缓存；导入后点击账号检测获取模型列表。";
+  $("#gatewayAccounts").innerHTML = state.accounts.map(account => '<tr><td>' + escapeHtml(account.name) + '</td><td>' +
+    escapeHtml(account.status) + '</td><td>' + Number(account.inFlight || 0) + '</td><td>' + escapeHtml(account.lastError || "—") +
+    '</td><td><button type="button" class="secondary compact" data-gateway-check="' + escapeHtml(account.id) + '">检测</button> ' +
+    '<button type="button" class="secondary compact" data-gateway-toggle="' + escapeHtml(account.id) + '" data-enabled="' + !account.enabled + '">' +
+    (account.enabled ? "停用" : "启用") + '</button></td></tr>').join("") || '<tr><td colspan="5">暂无账号，请启用网关后同步本项目账号，或导入已有平台会话。</td></tr>';
+}
+
+$("#saveGateway").addEventListener("click", event => void runAction(event.currentTarget, async () => {
+  const body = {enabled: $("#gatewayEnabled").checked};
+  if ($("#gatewayClearProxy").checked) body.proxy = "";
+  else if ($("#gatewayProxy").value.trim()) body.proxy = $("#gatewayProxy").value.trim();
+  await api("/api/gateway", {method: "PATCH", body});
+  await loadGateway();
+  toast("网关配置已保存");
+}));
+$("#refreshGateway").addEventListener("click", event => void runAction(event.currentTarget, loadGateway));
+$("#showGatewayKey").addEventListener("click", event => void runAction(event.currentTarget, async () => {
+  const input = $("#gatewayKey");
+  if (input.value) { input.value = ""; input.type = "password"; $("#showGatewayKey").textContent = "显示密钥"; return; }
+  const result = await api("/api/gateway/key", {method: "POST"});
+  if (activeView !== "gateway") return;
+  input.type = "text"; input.value = result.api_key;
+  $("#showGatewayKey").textContent = "隐藏密钥";
+}));
+$("#copyGatewayKey").addEventListener("click", event => void runAction(event.currentTarget, async () => {
+  const result = await api("/api/gateway/key", {method: "POST"});
+  if (activeView !== "gateway") return;
+  await navigator.clipboard.writeText(result.api_key);
+  toast("密钥已复制，请勿公开分享");
+}));
+$("#rotateGatewayKey").addEventListener("click", event => void runAction(event.currentTarget, async () => {
+  if (!confirm("更换后旧密钥立即失效，需要更新客户端配置。继续？")) return;
+  await api("/api/gateway/key", {method: "POST", body: {rotate: true}});
+  $("#gatewayKey").value = ""; $("#gatewayKey").type = "password";
+  $("#showGatewayKey").textContent = "显示密钥";
+  toast("密钥已更换，请重新复制到客户端");
+}));
+$("#syncGatewayAccounts").addEventListener("click", event => void runAction(event.currentTarget, async () => {
+  const result = await api("/api/gateway/sync", {method: "POST"});
+  await loadGateway(); toast("新增 " + result.imported + " 个账号，跳过已有 " + result.skipped + " 个");
+}));
+$("#importGatewayAccounts").addEventListener("click", event => void runAction(event.currentTarget, async () => {
+  let accounts;
+  try { accounts = JSON.parse($("#gatewayImport").value); } catch { throw new Error("请输入有效的 JSON 数组"); }
+  const result = await api("/api/gateway/accounts/import", {method: "POST", body: {accounts}});
+  $("#gatewayImport").value = "";
+  await loadGateway(); toast("已新增 " + result.imported + " 个平台会话");
+}));
+$("#gatewayAccounts").addEventListener("click", event => {
+  const button = event.target.closest("button");
+  if (!button || button.disabled) return;
+  void runAction(button, async () => {
+    if (button.dataset.gatewayCheck) await api("/api/gateway/accounts/" + encodeURIComponent(button.dataset.gatewayCheck) + "/check", {method: "POST"});
+    if (button.dataset.gatewayToggle) await api("/api/gateway/accounts/" + encodeURIComponent(button.dataset.gatewayToggle), {method: "PATCH", body: {enabled: button.dataset.enabled === "true"}});
+    await loadGateway();
+  });
+});
+window.addEventListener("pagehide", () => { $("#gatewayKey").value = ""; $("#gatewayProxy").value = ""; $("#gatewayImport").value = ""; });
+
 void loadHealth().catch(error => toast(error.message, true));
 void routeTo(location.hash.slice(1));
 updateBatchCounts();

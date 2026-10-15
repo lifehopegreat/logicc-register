@@ -298,7 +298,7 @@ apply_process_timezone()
 
 @app.before_request
 def _auth_guard() -> Response | None:
-    if request.path == "/api/health":
+    if request.path == "/api/health" or request.path.startswith("/v1/"):
         return None
     expected = os.environ.get("FREE_CONSOLE_PASSWORD", "")
     if not expected:
@@ -1958,6 +1958,11 @@ def api_download(job_id: str, kind: str):
     return send_file(path, as_attachment=True, download_name=path.name)
 
 
+
+
+from model_gateway import install_gateway
+
+model_gateway = install_gateway(app, lambda: DATA, lambda: console_vault().key_path.read_bytes().strip())
 
 
 if __name__ == "__main__":

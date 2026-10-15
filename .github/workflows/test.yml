@@ -12,6 +12,10 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: "3.11"
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "24"
       - run: pip install -r requirements.txt pytest
       - run: PYTHONPATH=. pytest -q tests
       - run: node --check static/app.js
+      - run: node --check core/gateway_worker.mjs

@@ -521,6 +521,15 @@ tbody tr:last-child td { border-bottom: 0; }
 .settings-nav button.active { color: var(--on-fill); border-color: transparent; background: var(--fill); font-weight: 650; }
 .setting-panel { display: none; }
 .setting-panel.active { display: block; }
+#view-gateway > .surface { padding: 24px; margin-bottom: 20px; }
+#view-gateway .batch-actions { margin-top: 16px; }
+#view-gateway details { margin-top: 20px; }
+#view-gateway summary { cursor: pointer; margin-bottom: 12px; }
+@media (max-width: 640px) {
+  #view-gateway > .surface { padding: 16px; }
+  #view-gateway .setting-title { flex-direction: column; }
+  #view-gateway .setting-title button { align-self: flex-start; white-space: nowrap; }
+}
 .setting-title { margin-bottom: 22px; padding-bottom: 18px; border-bottom: 1px solid var(--line); display: flex; justify-content: space-between; gap: 16px; }
 .setting-title h2 { margin: 8px 0; font-size: 24px; letter-spacing: -.03em; }
 .setting-title span { color: var(--muted); font-size: 13px; }
