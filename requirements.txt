@@ -6,4 +6,4 @@ curl-cffi>=0.13.0
 cryptography>=42.0.0
 DrissionPage>=4.1.0
 h2>=4.1.0
-tzdata>=2025.1; platform_system == "Windows"
+tzdata>=2025.1
