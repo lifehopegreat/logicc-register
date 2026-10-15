@@ -1,0 +1,22 @@
+{
+  "source_files": 59,
+  "known_private_values_checked": 95,
+  "privacy_findings": 0,
+  "excluded": [
+    "runtime data and encrypted stores",
+    "HAR and original captures",
+    "logs and results",
+    "screenshots and copied readme images",
+    "manual local diagnostics",
+    "local agent instructions",
+    "obsolete copied sanitizer script",
+    "old empty GPT workflow directories",
+    "all sibling projects and reference frameworks"
+  ],
+  "original_project_modified": false,
+  "offline_tests_passed": 256,
+  "javascript_syntax": "passed",
+  "independent_scanner": "Gitleaks 8.30.1",
+  "independent_scan_findings": 0,
+  "live_registration_tested": false
+}

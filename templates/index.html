@@ -1,0 +1,135 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <meta name="theme-color" content="#090909">
+  <title>Logicc Console</title>
+  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='8' fill='%23111111'/%3E%3Cpath d='M8 22h4V15H8zm6 0h4V11h-4zm6 0h4V7h-4z' fill='%23ffffff'/%3E%3C/svg%3E">
+  <script>
+    (function () {
+      try {
+        var saved = localStorage.getItem("logicc-theme");
+        var theme = saved === "light" || saved === "dark" ? saved : (matchMedia("(prefers-color-scheme: light)").matches ? "light" : "dark");
+        document.documentElement.dataset.theme = theme;
+      } catch (error) {
+        document.documentElement.dataset.theme = "dark";
+      }
+    })();
+  </script>
+  <link rel="stylesheet" href="{{ url_for('static', filename='styles.css') }}">
+</head>
+<body>
+  <div class="app-shell">
+    <aside class="sidebar" id="sidebar">
+      <a class="brand" href="#pool" data-nav="pool"><span class="brand-mark"><i></i><i></i><i></i></span><span><strong>LOGICC</strong><small>LOCAL CONSOLE</small></span></a>
+      <nav class="main-nav" aria-label="主导航">
+        <button class="nav-item active" data-nav="pool"><span>邮箱管理</span></button>
+        <button class="nav-item" data-nav="launch"><span>注册工作台</span></button>
+        <button class="nav-item" data-nav="jobs"><span>任务队列</span></button>
+        <button class="nav-item" data-nav="results"><span>任务结果</span></button>
+        <button class="nav-item" data-nav="settings"><span>运行配置</span></button>
+      </nav>
+      <div class="sidebar-foot"><div class="health-pulse"><span id="sideHealthDot"></span><div><strong id="sideHealthText">检查中</strong><small>Logicc only · v0.2.0</small></div></div></div>
+    </aside>
+    <main class="workspace">
+      <header class="topbar"><button class="text-button" id="sidebarToggle" aria-label="打开导航">导航</button><span id="pageCrumb">邮箱管理</span><button class="text-button" id="themeToggle">切换主题</button></header>
+      <section class="view active" id="view-pool" data-view="pool">
+        <div class="page-heading"><div><p class="kicker">MAILBOX / LOGICC</p><h1>邮箱管理</h1><p>查看邮箱来源、账号状态及 Logicc 平台密码；密码默认隐藏，不在列表中传输。</p></div><div class="heading-actions"><button class="secondary" id="refreshAccounts">刷新</button><button class="primary" id="openImport">导入邮箱</button></div></div>
+        <div class="filter-bar"><label class="search-box"><span>搜索</span><input id="poolSearch" aria-label="搜索邮箱" placeholder="邮箱地址"></label><span id="accountCount"></span></div>
+        <section class="surface table-surface"><div class="table-wrap"><table><thead><tr><th>邮箱</th><th>来源</th><th>状态</th><th>Logicc 平台密码</th></tr></thead><tbody id="poolTableBody"></tbody></table></div><div id="poolEmpty" class="empty-state hidden"><h3>还没有邮箱</h3><p>导入 Outlook、Relay 或密码 IMAP 邮箱。</p></div></section>
+      </section>
+      <section class="view" id="view-launch" data-view="launch">
+        <div class="page-heading"><div><p class="kicker">REGISTRATION / HTTP ONLY</p><h1>批量协议注册</h1><p>粘贴邮箱列表与代理列表即可启动：每个邮箱独立子进程，注册 → Logicc 邮箱验证码 → 认证身份 → 公司入驻。同一会话运行，不启动浏览器。</p></div>
+          <div class="launch-readouts">
+            <div id="taskReadout" class="task-readout" role="status" aria-label="已完成 0 / 总任务 0" title="当前批次的已完成数（含失败）/总任务；待人工和待验证码不计为完成"><span id="completedReadout" class="rolling-number" aria-hidden="true" data-value="0">0</span><span aria-hidden="true">/</span><span id="totalReadout" class="rolling-number" aria-hidden="true" data-value="0">0</span></div>
+            <div id="balanceReadout" class="balance-readout" role="status" aria-label="CapMonster 余额尚未读取"><span class="balance-label">余额：</span><span id="balanceValue" class="rolling-number" aria-hidden="true" data-value="--">--</span></div>
+          </div>
+        </div>
+        <form id="protocolRunForm" class="surface setting-panel active">
+          <div class="field-grid two-wide batch-grid">
+            <div class="textarea-shell">
+              <label for="batchEmails"><span>注册邮箱（每行一个，最多 100）</span></label>
+              <textarea id="batchEmails" rows="5" autocomplete="off" spellcheck="false" aria-label="注册邮箱列表" placeholder="owner1@example.com&#10;owner2@example.com----邮箱密码----client_id----refresh_token"></textarea>
+              <div class="textarea-meta"><span><i></i>每行一个邮箱；带 ---- 凭据的行会自动导入邮箱管理</span><b id="batchEmailCount">0 / 100</b></div>
+            </div>
+            <div class="textarea-shell">
+              <label for="batchProxies"><span>代理地址（每行一条，最多 100）</span></label>
+              <textarea id="batchProxies" rows="5" autocomplete="off" spellcheck="false" aria-label="代理列表" placeholder="REGION|host:port:user:password&#10;http://user:pass@host:port"></textarea>
+              <div class="textarea-meta"><span><i></i>支持 host:port:user:password 或带协议的 URL；留空直连</span><b id="batchProxyCount">0 / 100</b></div>
+            </div>
+          </div>
+          <div class="field-grid two-wide batch-controls">
+            <label><span>并发数 <small id="batchWorkerHint">1 – 32</small></span><input id="batchWorkers" type="number" min="1" max="32" step="1" value="4" inputmode="numeric" aria-label="并发数"></label>
+            <div class="batch-assignment" id="batchAssignment" role="status" aria-label="代理轮询分配说明">代理按行轮询分配：代理数量为 0 时全部直连。</div>
+          </div>
+          <p>姓名、公司名称及独立平台密码按账号自动生成。当前行业/规模沿用抓包中的有效枚举：healthcare / extra-large。</p>
+          <p>验证码只接收 Logicc 邮件。配置 CapMonster 后，Turnstile 每账号最多付费求解一次；失败会暂停，不重复扣费、不重用旧 Token。未配置时需人工验证。</p>
+          <section class="worklog-panel" aria-labelledby="worklogTitle">
+            <header><strong id="worklogTitle">运行日志</strong><span id="worklogStatus" role="status">暂无任务</span></header>
+            <pre id="worklogOutput" tabindex="0" aria-label="注册运行日志">尚未启动批次。启动后在这里显示脱敏运行日志。</pre>
+          </section>
+          <section class="surface table-surface batch-table" aria-labelledby="batchTableTitle">
+            <header class="batch-table-head"><strong id="batchTableTitle">账号进度</strong><span id="batchTableSummary">尚未启动批次</span></header>
+            <div class="table-wrap"><table><thead><tr><th>邮箱</th><th>代理</th><th>状态</th><th>阶段</th><th>说明</th></tr></thead><tbody id="batchTableBody"></tbody></table></div>
+          </section>
+          <label class="switch-line"><span>我确认接受 Logicc 注册页面展示的条款</span><input id="registrationTerms" type="checkbox" required><i></i></label>
+          <div class="batch-actions">
+            <button id="startProtocolRun" type="submit" class="primary">启动批量 HTTP 注册</button>
+            <button id="stopBatchRun" type="button" class="danger" disabled>停止当前批次</button>
+          </div>
+        </form>
+      </section>
+      <section class="view" id="view-jobs" data-view="jobs"><div class="page-heading"><div><h1>任务队列</h1><p>查看协议阶段和明确的成功、待人工、待收码或需核对状态。</p></div><button class="secondary" id="refreshJobs">刷新</button></div><section class="surface table-surface"><div class="table-wrap"><table><thead><tr><th>任务</th><th>状态</th><th>进度</th><th>结果</th><th>操作</th></tr></thead><tbody id="jobsTableBody"></tbody></table></div></section></section>
+      <section class="view" id="view-results" data-view="results"><div class="page-heading"><div><h1>任务结果</h1><p>列表不返回凭据。</p></div><button class="secondary" id="refreshResults">刷新</button></div><section class="surface table-surface"><div class="table-wrap"><table><thead><tr><th>邮箱</th><th>状态</th><th>方式</th><th>任务</th></tr></thead><tbody id="resultsTableBody"></tbody></table></div></section></section>
+      <section class="view" id="view-settings" data-view="settings">
+        <div class="page-heading"><div><p class="kicker">SYSTEM / CONFIG</p><h1>运行配置</h1><p>配置只保存在独立项目的数据目录，敏感值读取时保持隐藏。</p></div><button class="primary" id="saveSettings">保存通用配置</button></div>
+        <div class="settings-layout">
+          <nav class="settings-nav"><button class="active" data-setting-panel="proxy">01 · 托管代理</button><button data-setting-panel="browser">02 · 浏览器宿主</button><button data-setting-panel="mailbox">03 · 域名邮箱</button><button data-setting-panel="runtime">04 · 运行时</button><button data-setting-panel="proxy-pool">05 · 固定代理池</button><button data-setting-panel="capmonster">06 · CapMonster</button><button data-setting-panel="logicc2api">07 · 自动导入</button></nav>
+          <div class="surface settings-content">
+            <section class="setting-panel active" data-panel="proxy"><div class="setting-title"><div><p>02 / MANAGED PROXY</p><h2>托管代理兼容配置</h2><span>供旧代理检测接口使用；协议注册请明确选择固定代理池条目或手填地址，不自动生成或轮换 Session。</span></div></div><div class="field-grid two-wide"><label><span>Host</span><input data-setting="proxy_host" placeholder="global.rotgb.example.com"></label><label><span>Port</span><input data-setting="proxy_port" type="number"></label><label><span>User</span><input data-setting="proxy_user" placeholder="USER-zone-custom-region-US"></label><label><span>Password</span><input type="password" data-setting="proxy_password" placeholder="已配置时留空可保留"></label></div></section>
+            <section class="setting-panel" data-panel="proxy-pool"><div class="setting-title"><div><h2>固定代理池</h2><span>凭据加密保存；注册时明确选择一条，全程固定网关和 Session，不自动轮换。</span></div></div><label><span>每行 host:port:user:password，支持 REGION| 前缀</span><textarea id="proxyLines" rows="4" autocomplete="off" spellcheck="false" aria-label="固定代理列表"></textarea></label><button class="secondary compact" id="importProxies" type="button">追加导入代理</button><div class="table-wrap"><table><thead><tr><th>代理</th><th>连接状态</th><th>操作</th></tr></thead><tbody id="proxyTableBody"></tbody></table></div></section>
+            <section class="setting-panel" data-panel="browser"><div class="setting-title"><div><p>04 / BROWSER HOST</p><h2>浏览器宿主连接</h2><span>Roxy 仅连接本机 API；保留浏览器宿主配置，当前不执行注册任务。</span></div><button class="secondary compact" id="testRoxy" type="button">测试 Roxy API</button></div><div class="field-grid two-wide"><label><span>Roxy API Port</span><input data-setting="roxy_api_port" type="number" min="1" max="65535" inputmode="numeric"></label><label><span>Roxy API Key</span><input type="password" data-setting="roxy_api_token" placeholder="已配置时留空可保留" autocomplete="off"></label><label><span>Roxy Workspace ID <small>可选</small></span><input data-setting="roxy_workspace_id" type="number" min="1" placeholder="留空自动选择"></label><label><span>API 限流 <small>次/分钟</small></span><input data-setting="roxy_api_rate_limit" type="number" min="1" max="600" value="45"></label><label><span>Chromium path</span><input data-setting="chrome_path" placeholder="留空自动发现本机 Chrome"></label><label><span>BitBrowser API <small>兼容旧流程</small></span><input data-setting="bitbrowser_api"></label></div><div class="roxy-assurance"><span><i></i><b>逐账号代理</b><small>代理池分配结果写入对应 profile</small></span><span><i></i><b>IP 自适配</b><small>语言、时区、定位随代理出口</small></span><span><i></i><b>WebRTC 替换</b><small>避免暴露本机公网地址</small></span><span><i></i><b>任务后销毁</b><small>关闭并删除临时 profile</small></span></div><div id="roxyTestResult" class="inline-result hidden"></div></section>
+            <section class="setting-panel" data-panel="mailbox"><div class="setting-title"><div><p>05 / OWNED MAILBOX</p><h2>自建域名邮箱</h2><span>可连接自建只收信邮箱；更换域名或迁移服务器时只需修改这里，无需改代码。</span></div><button class="secondary compact" id="testDomainMailbox" type="button">测试连接</button></div><div class="field-grid two-wide"><label><span>自动邮箱源</span><select data-setting="domain_mailbox_enabled"><option value="0">停用</option><option value="1">启用</option></select></label><label><span>显示名称</span><input data-setting="domain_mailbox_label" placeholder="自建域名邮箱"></label><label><span>管理 API Origin</span><input data-setting="domain_mailbox_api_origin" inputmode="url" placeholder="https://gateway.example.com"></label><label><span>上游 Host <small>可选</small></span><input data-setting="domain_mailbox_host_header" placeholder="manage.mail.example.com"><small class="field-hint">仅在 HTTPS 网关代转时填写；留空使用 API Origin 的主机名</small></label><label><span>Admin API Token</span><input type="password" data-setting="domain_mailbox_admin_token" autocomplete="off" placeholder="已配置时留空可保留"></label><label><span>默认域名</span><input data-setting="domain_mailbox_default_domain" placeholder="mail.example.com"></label><label><span>可用域名</span><input data-setting="domain_mailbox_domains" placeholder="mail.example.com, inbox.example.com"></label><label><span>Local part <small>可选</small></span><input data-setting="domain_mailbox_local_part" placeholder="留空由服务端随机生成"></label><label><span>请求超时</span><div class="number-field"><input data-setting="domain_mailbox_request_timeout" type="number" min="3" max="120" value="30"><small>seconds</small></div></label></div><div class="mailbox-assurance"><span><i></i><b>后台创建</b><small>管理员 Token 不进入浏览器和任务文件</small></span><span><i></i><b>逐邮箱凭据</b><small>OTP 读取只使用独立收件箱 Token</small></span><span><i></i><b>自动入池</b><small>收码只筛选 Logicc 验证邮件</small></span></div><div id="domainMailboxTestResult" class="inline-result hidden"></div></section>
+            <section class="setting-panel" data-panel="capmonster">
+              <div class="setting-title"><div><h2>CapMonster Cloud</h2><span>密钥仅保存在本机加密文件；每个注册任务最多创建一个付费求解。</span></div></div>
+              <label class="switch-line"><span>启用 Turnstile API 求解</span><input id="capmonsterEnabled" type="checkbox"><i></i></label>
+              <label><span>API 密钥</span><input id="capmonsterKey" type="password" autocomplete="off" maxlength="32" placeholder="留空保留已配置密钥"></label>
+              <p>固定官方 API 地址；最多轮询 60 次 / 180 秒。测试只查余额，不创建付费任务。禁用后保留加密密钥。</p>
+              <button class="primary compact" id="saveCapmonster" type="button">保存 CapMonster</button>
+              <button class="secondary compact" id="testCapmonster" type="button">测试已保存配置</button>
+              <div id="capmonsterResult" class="inline-result hidden" role="status"></div>
+            </section>
+            <section class="setting-panel" data-panel="logicc2api">
+              <div class="setting-title"><div><h2>注册后自动导入 logicc2api</h2><span>仅在账号认证和公司入驻都确认成功后，通过本机管理 API 导入并检测模型列表。</span></div></div>
+              <label class="switch-line"><span>启用成功后自动导入</span><input id="logicc2apiEnabled" type="checkbox"><i></i></label>
+              <label><span>本机服务地址</span><input id="logicc2apiBaseUrl" type="url" placeholder="http://127.0.0.1:18789"></label>
+              <p>仅传 __client Cookie + Session ID，不传邮箱密码/Token。按 Session 去重；导入失败不改变注册结果。logicc2api 继续使用自身的上游代理配置，不继承注册代理。</p>
+              <button class="primary compact" id="saveLogicc2api" type="button">保存自动导入配置</button>
+              <button class="secondary compact" id="testLogicc2api" type="button">测试已保存连接</button>
+              <div id="logicc2apiResult" class="inline-result hidden" role="status"></div>
+            </section>
+            <section class="setting-panel" data-panel="runtime"><div class="setting-title"><div><p>06 / RUNTIME</p><h2>核心运行时检查</h2><span>已接入 Logicc HTTP 注册、可选 CapMonster 和本机 logicc2api 自动导入。</span></div><button class="secondary compact" id="runtimeRefresh">重新检查</button></div><div class="field-grid two-wide runtime-timezone"><label><span>显示时区</span><select data-setting="display_timezone"><option value="Asia/Shanghai">Asia/Shanghai · UTC+8</option><option value="UTC">UTC · UTC+0</option><option value="America/Los_Angeles">America/Los_Angeles · UTC-7/8</option></select></label><p>任务与账号记录统一保存 UTC；页面、日志中的本地时间按此时区显示。</p></div><div id="runtimeDetails" class="runtime-grid"></div></section>
+          </div>
+        </div>
+      </section>
+    </main>
+  </div>
+  <dialog class="credential-dialog" id="importDialog" aria-labelledby="importTitle"><header><h2 id="importTitle">导入邮箱</h2><button class="text-button" data-close="importDialog">关闭</button></header><p>支持 Outlook 四字段、Relay 两字段和 NotLetters 密码 IMAP。仅导入邮箱凭据，不接受旧 GPT 密码/2FA/套餐附加字段。</p><form id="importForm"><label><span>邮箱列表</span><textarea id="importLines" rows="8" required autocomplete="off" spellcheck="false" placeholder="email----password----client_id----refresh_token&#10;email----https://relay.example/inbox"></textarea></label><label><span>导入方式</span><select id="importMode"><option value="append">追加/更新</option><option value="replace">替换全部邮箱（删除旧邮箱）</option></select></label><button class="primary" type="submit">导入</button></form></dialog>
+  <dialog class="credential-dialog" id="passwordDialog" aria-labelledby="passwordTitle"><header><h2 id="passwordTitle">Logicc 平台密码</h2><button class="text-button" data-close="passwordDialog">关闭</button></header><p id="passwordEmail"></p><output id="passwordOutput" aria-live="polite"></output><p>这是平台注册时生成的独立密码，不是邮箱密码；关闭窗口或切换页面后清除。</p></dialog>
+  <dialog class="credential-dialog" id="jobDialog" aria-labelledby="jobTitle"><header><h2 id="jobTitle">任务详情</h2><button class="text-button" data-close="jobDialog">关闭</button></header><p id="jobState" aria-live="polite"></p><pre id="jobLog"></pre><div id="jobDownloads"></div></dialog>
+  <dialog class="credential-dialog" id="resumeDialog" aria-labelledby="resumeTitle">
+    <header><h2 id="resumeTitle">继续原协议会话</h2><button class="text-button" data-close="resumeDialog">关闭</button></header>
+    <p id="resumeExplanation"></p>
+    <form id="resumeForm">
+      <label id="resumeCaptchaLabel"><span>新的 Turnstile 验证材料（可选）</span><input id="resumeCaptcha" type="password" autocomplete="off" maxlength="2048"><small>留空时使用已配置的 CapMonster，最多创建一次付费任务；继续任务不会重新付费。手动材料必须来自当前会话，不可使用旧抓包 Token。</small></label>
+      <label id="resumeCodeLabel"><span>Logicc 验证码（可选，留空自动收码）</span><input id="resumeCode" type="password" autocomplete="off" inputmode="numeric" pattern="[0-9]{6}" maxlength="6"></label>
+      <label id="resumeResendLabel" class="switch-line"><span>明确重新发送一次验证码（最多两次发码）</span><input id="resumeResend" type="checkbox"><i></i></label>
+      <p>使用原检查点继续，不新建账号。超时或不确定结果先核对远端状态，不盲目重复写请求。</p>
+      <button class="primary" type="submit">继续原任务</button>
+    </form>
+  </dialog>
+  <div class="toast-stack" id="toastStack" aria-live="polite"></div>
+  <script src="{{ url_for('static', filename='app.js') }}"></script>
+</body>
+</html>
